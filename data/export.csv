@@ -1,0 +1,6 @@
+﻿id,date,topic,minutes,done
+1,2026/8/29,利用python创建SQL数据库,30,yes
+2,2026/8/29,建立学习日志管理器,80,yes
+3,2026/8/29,更新学习日志管理器v1.1.3,100,yes
+4,修bug,修bug,30,yes
+5,2026/8/29,MySQL安装,10,yes
