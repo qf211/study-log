@@ -82,6 +82,13 @@ def export_csv(cur):
 def is_valid_minutes(m):
     return 1 <= m <= 600
 
+def parse_minutes(text):
+    try:
+        num = int(text)
+    except ValueError:
+        num = None
+    return num
+
 # ========== 菜单区  ==========
 
 def main():
@@ -103,10 +110,14 @@ def main():
         if choice == '1':
             date = input('日期(如2026-08-28): ')
             topic = input('学习的内容: ')
-            minutes = int(input('学习了多少分钟: '))
+            minutes = parse_minutes(input('学习了多少分钟: '))
+            if minutes is None:
+                print('请输入数字')
+                continue
             if not is_valid_minutes(minutes):
                 print('数值无效, 请输入1~600的值')
                 continue
+
             done = input('学习情况(yes/no): ')
             add_record(conn, cur, date, topic, minutes, done)
             print('已添加')

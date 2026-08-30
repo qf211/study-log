@@ -112,3 +112,11 @@ def test_get_by_id_miss_multi(db, bad_id):
 ])
 def test_is_valid_minutes(m, expected):
     assert log.is_valid_minutes(m) == expected
+
+@pytest.mark.parametrize("text, integer", [
+    ('abc', None), ('30', 30), ('2', 2),      
+    ('十五', None), ('12a', None), ('', None), 
+    ('3.5', None), ('100', 100),
+])
+def test_parse_minutes(text, integer):
+    assert log.parse_minutes(text) == integer
