@@ -104,3 +104,11 @@ def test_get_by_id_miss_multi(db, bad_id):
     cur = db.cursor()
     row = log.get_record_by_id(cur, bad_id)
     assert row is None
+
+@pytest.mark.parametrize("m, expected", [
+    (0, False), (1, True), (2, True),      
+    (599, True), (600, True), (601, False), 
+    (-1, False), (-100, False),             
+])
+def test_is_valid_minutes(m, expected):
+    assert log.is_valid_minutes(m) == expected

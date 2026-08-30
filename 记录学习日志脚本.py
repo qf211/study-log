@@ -79,6 +79,9 @@ def export_csv(cur):
         writer.writerow(['id', 'date', 'topic', 'minutes', 'done'])
         writer.writerows(cur.fetchall())
 
+def is_valid_minutes(m):
+    return 1 <= m <= 600
+
 # ========== 菜单区  ==========
 
 def main():
@@ -101,6 +104,9 @@ def main():
             date = input('日期(如2026-08-28): ')
             topic = input('学习的内容: ')
             minutes = int(input('学习了多少分钟: '))
+            if not is_valid_minutes(minutes):
+                print('数值无效, 请输入1~600的值')
+                continue
             done = input('学习情况(yes/no): ')
             add_record(conn, cur, date, topic, minutes, done)
             print('已添加')
