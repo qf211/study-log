@@ -1,16 +1,9 @@
-# -*- coding: utf-8 -*-
-# 学习日志管理器 - MySQL 完整版 v4 (可测试性重构版, 只能在云服务器上跑!)
-# 运行: python3 db_mysql.py
-# 与本地 SQLite 版功能 1:1 对齐: 11 个干活函数 + 薄菜单层 + __main__ 守卫
-# 密码在 config.py 里, config.py 已被 .gitignore 挡住, 不会上传 GitHub
 
 import csv
 import os
 import pymysql
-from config import DB_PASSWORD  # 密码从 config.py 读, 不写死在代码里
+from config import DB_PASSWORD 
 
-# ========== 数据库连接 (启动时执行一次) ==========
-# host='127.0.0.1' = 只连服务器本机, 密码不出服务器
 conn = pymysql.connect(
     host='127.0.0.1',
     user='root',
@@ -20,13 +13,13 @@ conn = pymysql.connect(
 cur = conn.cursor()
 
 # ========== 建表 ==========
-# MySQL 差异1: 自增主键必须显式写 AUTO_INCREMENT
+
 cur.execute("""CREATE TABLE IF NOT EXISTS study_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     date TEXT, topic TEXT,
     minutes INT, done TEXT
 )""")
-# MySQL 差异2: TEXT 不能做主键, 用 VARCHAR(100)
+
 cur.execute("CREATE TABLE IF NOT EXISTS shell_topic (topic VARCHAR(100) PRIMARY KEY)")
 conn.commit()
 
@@ -35,7 +28,7 @@ def add_record(conn, cur, date, topic, minutes, done):
     """添加一条学习记录, 同时把主题登记进字典表"""
     cur.execute("INSERT INTO study_log (date, topic, minutes, done) VALUES (%s, %s, %s, %s)",
                 (date, topic, minutes, done))
-    # MySQL 差异3: 去重写 INSERT IGNORE (SQLite 是 INSERT OR IGNORE, 词序不同!)
+
     cur.execute("INSERT IGNORE INTO shell_topic (topic) VALUES (%s)", (topic,))
     conn.commit()
 
