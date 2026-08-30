@@ -51,7 +51,7 @@ pip install pytest
 pytest test_study_log.py -v
 ```
 
-> 提示：MySQL 版从 `config.py` 读取数据库密码，`config.py` 已被 `.gitignore` 排除，不会提交到仓库。
+> 提示：MySQL 版从 `config.py` 读取数据库密码
 
 ## 📌 SQLite 与 MySQL 差异实践
 
@@ -66,4 +66,4 @@ pytest test_study_log.py -v
 
 ## 📝 项目背景
 
-2027 届求职准备期间的学习记录工具，用于实践 Python、SQLite、MySQL、pytest 和 Git 的综合运用。项目部署在阿里云 ECS（Alibaba Cloud Linux）上运行 MySQL 版。
+学习记录工具，用于实践 Python、SQLite、MySQL、pytest 和 Git 的综合运用。项目部署在阿里云 ECS（Alibaba Cloud Linux）上运行 MySQL 版。
