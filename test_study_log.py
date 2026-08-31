@@ -120,3 +120,45 @@ def test_is_valid_minutes(m, expected):
 ])
 def test_parse_minutes(text, integer):
     assert log.parse_minutes(text) == integer
+
+def check_login(user_ok, pwd_ok):
+    if not user_ok:
+        return '用户名错误'
+    elif not pwd_ok:
+        return '密码错误'
+    return '成功登录'
+
+@pytest.mark.parametrize('user_ok, pwd_ok, expected', [
+    (True, True, '成功登录'),
+    (True, False, '密码错误'),
+    (False, True, '用户名错误'),
+    (False, False, '用户名错误'),
+])
+def test_login(user_ok, pwd_ok, expected):
+    assert check_login(user_ok, pwd_ok) == expected
+
+def _check_add_record_helper(date_text, topic, minutes_text):
+    if log.parse_date(date_text) is None:
+        return '日期错误'
+    elif not topic:
+        return '内容错误'
+    elif not minutes_text:
+        return '时间错误'           # ← 空串: None/'' 都拦下来
+    elif log.parse_minutes(minutes_text) is None:
+        return '时间格式错误'        # ← 'abc' '3.5' 这种:转不成数字
+    elif not log.is_valid_minutes(int(minutes_text)):
+        return '时间范围错误'        # ← 0/601/-1 这种:数字但超界
+    return '成功'
+
+@pytest.mark.parametrize('date_text, topic, minutes_text, expected', [
+    ('2026-08-31', 'python', '30', '成功'),
+    ('2026-13-32', 'python', '30', '日期错误'),
+    ('2026-08-dd', 'python', '30', '日期错误'),
+    ('2026-08-31', '', '30', '内容错误'),
+    ('2026-08-31', 'python', '0', '时间范围错误'),
+    ('2026/08/31', 'python', '30', '日期错误'),
+    ('2026-08-31', 'python', 'abc', '时间格式错误'),
+    ('2026-08-', '', '', '日期错误'),
+])
+def test_check_add_record(date_text, topic, minutes_text, expected):
+    assert _check_add_record_helper(date_text, topic, minutes_text) == expected

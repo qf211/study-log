@@ -1,5 +1,6 @@
 import csv
 import sqlite3
+from datetime import datetime
 
 # ========== 数据库连接 (启动时执行一次) ==========
 conn = sqlite3.connect('data/study.db')
@@ -10,6 +11,12 @@ cur.execute("CREATE TABLE IF NOT EXISTS shell_topic (topic TEXT PRIMARY KEY)")
 conn.commit()
 
 
+def parse_date(text):
+    try:
+        datetime.strptime(text, '%Y-%m-%d')
+        return text
+    except(ValueError, TypeError):
+        return None
 
 def add_record(conn, cur, date, topic, minutes, done):
     """添加一条学习记录, 同时把主题登记进字典表"""
