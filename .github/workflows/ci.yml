@@ -1,0 +1,51 @@
+name: CI
+# 工作流的名字，GitHub Actions 页面显示用
+
+on:
+# 触发条件：什么时候跑这个工作流
+
+  push:
+  # 代码推送到远程仓库时触发
+
+    branches: [ main ]
+    # 只在 main 分支被推送时触发（避免其他分支的临时改动也跑）
+
+  pull_request:
+  # 有人发起 PR（合并请求）时也触发，合并前先验证
+
+    branches: [ main ]
+
+jobs:
+# 任务列表：这个工作流要干哪些活
+
+  test:
+  # 任务名字（自己起），这里叫 test，表示跑测试
+
+    runs-on: ubuntu-latest
+    # 运行环境：GitHub 免费开一台最新的 Ubuntu 虚拟机
+    # 每次触发都是全新机器，环境干净，不会受本地环境影响
+
+    steps:
+    # 步骤列表：从上到下一条条执行
+
+      - name: 拉取代码
+        uses: actions/checkout@v4
+        # uses = 使用 GitHub 官方写好的现成动作
+        # checkout = 把仓库里的代码拷到这台临时机器上
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        # 官方动作：在这台机器上装指定版本的 Python
+        with:
+          python-version: '3.13'
+          # with = 给这个动作传参数；这里指定版本 3.13
+
+      - name: 安装测试依赖
+        run: pip install pytest
+        # run = 直接执行命令（就像你在终端敲）
+        # 测试只用 pytest + 自带的 sqlite3，所以装一个就够
+
+      - name: 跑全部测试
+        run: pytest -v
+        # 执行全部测试；-v 详细输出每个用例名
+        # 只要有 1 个失败，这一步非零退出码，整个工作流标红
