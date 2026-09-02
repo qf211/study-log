@@ -2,3 +2,7 @@ config.py
 __pycache__/
 .pytest_cache/
 data/
+
+# 部署包与本地参考（不提交）
+study-log-deploy.tar.gz
+web/main_v2_参考.py
