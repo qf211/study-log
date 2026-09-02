@@ -175,18 +175,53 @@ def list_page():
             f"<p>{row['date']} - {row['topic']}"
             f"({row['minutes']}分钟)"
             f"<a href='/edit/{row['id']}'>编辑</a></p>"
+            f"<button type='button' onclick='delRecord({row['id']})'>删除</button>"
         )
         record_lines.append(line)
     records_html = "\n".join(record_lines)
+    script = """
+    <script>
+    function delRecord(id) {
+        fetch('/records/' + id, {method: 'DELETE'})
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('删除失败')
+            }
+        });
+    }
+    </script>
+    """
 
     return HTMLResponse(f"""
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>所有记录</title></head>
-<body>
-    <h1>所有学习记录</h1>
-    {records_html}
-    <p><a href='/'>← 返回新增页</a></p>
-</body>
-</html>
-""")
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"><title>所有记录</title></head>
+    <body>
+        <h1>所有学习记录</h1>
+        {records_html}
+        <p><a href='/'>← 返回新增页</a></p>
+        {script}
+    </body>
+    </html>
+    """)
+
+
+@app.delete('/records/{record_id}')
+def delete_records(record_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM study_log WHERE id = ?", (record_id,))
+    old = cur.fetchone()
+    if old is None:
+        conn.close()
+        raise HTTPException(status_code=404, detail='记录不存在')
+    cur.execute("DELETE FROM study_log WHERE id = ?", (record_id,))
+    conn.commit()
+
+    conn.close()
+    return {'status': 'ok', 'id': record_id}
+
+
+
