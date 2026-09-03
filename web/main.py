@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 import config
 from pathlib import Path
 from pydantic import BaseModel
@@ -15,7 +15,7 @@ DB_PATH = Path(__file__).resolve().parent.parent / 'data' / 'study.db'
 
 
 def _sql(s):
-    """SQL 占位符适配：sqlite 用 ?，mysql 用 %s"""
+    """SQL 占位符适配: sqlite 用 ?, mysql 用 %s"""
     if config.DATABASE_TYPE == 'mysql':
         return s.replace('?', '%s')
     return s
@@ -58,57 +58,63 @@ def index():
 
 
 @app.post("/records-form")
-def add_record_form(date: str = Form(...), topic: str = Form(...), minutes: int = Form(...)):
-    conn = get_conn()
+def add_record_form(
+    date: str = Form(...), 
+    topic: str = Form(...), 
+    minutes: int = Form(...), 
+    conn = Depends(get_conn)
+    ):
+    
     cur = conn.cursor()
     cur.execute(_sql("INSERT INTO study_log (date, topic, minutes, done) VALUES (?, ?, ?, ?)"),
                 (date, topic, minutes, False))
     conn.commit()
     new_id = cur.lastrowid
-    conn.close()
     return HTMLResponse(f"添加成功! 新纪录 id={new_id}, <a href='/'>返回表单</a>")
 
 
 @app.get('/records')
-def get_records():
-    conn = get_conn()
+def get_records(
+    conn = Depends(get_conn)
+):
     cur = conn.cursor()
     cur.execute(_sql("SELECT id, date, topic, minutes, done FROM study_log"))
     rows = cur.fetchall()
-    conn.close()
     return [dict(row) for row in rows]
 
 
 @app.get('/records/by_date')
-def get_records_by_date(date: str):
-    conn = get_conn()
+def get_records_by_date(
+    date: str, 
+    conn = Depends(get_conn)
+    ):
     cur = conn.cursor()
     cur.execute(_sql("SELECT * FROM study_log WHERE date = ?"), (date,))
     rows = cur.fetchall()
-    conn.close()
     return [dict(row) for row in rows]
 
 
 @app.get('/records/{records_id}')
-def get_record(records_id: int):
-    conn = get_conn()
+def get_record(
+    records_id: int, 
+    conn = Depends(get_conn)
+    ):
     cur = conn.cursor()
     cur.execute(_sql("SELECT id, date, topic, minutes, done FROM study_log WHERE id = ?"),
                 (records_id,))
     row = cur.fetchone()
-    conn.close()
     if row is None:
         raise HTTPException(status_code=404, detail='没有这条记录')
     return dict(row)
 
 
 @app.get('/stats')
-def get_stats():
-    conn = get_conn()
+def get_stats(
+    conn = Depends(get_conn)
+):
     cur = conn.cursor()
-    cur.execute(_sql("SELECT COUNT(*) AS total_count, SUM(minutes) AS total_minutes FROM study_log"))
+    cur.execute(_sql("SELECT COUNT(*) AS total_count, COALESCE(SUM(minutes), 0) AS total_minutes FROM study_log"))
     row = cur.fetchone()
-    conn.close()
     return dict(row)
 
 
@@ -127,41 +133,44 @@ class UpdateRecord(BaseModel):
 
 
 @app.post('/records')
-def add_record(record: NewRecord):
-    conn = get_conn()
+def add_record(
+    record: NewRecord, 
+    conn = Depends(get_conn)
+    ):
     cur = conn.cursor()
     cur.execute(_sql("INSERT INTO study_log (date, topic, minutes, done) VALUES (?, ?, ?, ?)"),
                 (record.date, record.topic, record.minutes, record.done))
     conn.commit()
     new_id = cur.lastrowid
-    conn.close()
     return {'id': new_id, 'status': 'ok'}
 
 
 @app.put('/records/{record_id}')
-def update_records(record_id: int, record: UpdateRecord):
-    conn = get_conn()
+def update_records(
+    record_id: int, 
+    record: UpdateRecord, 
+    conn = Depends(get_conn)
+    ):
     cur = conn.cursor()
     cur.execute(_sql("SELECT * FROM study_log WHERE id = ?"), (record_id,))
     old = cur.fetchone()
     if old is None:
-        conn.close()
         raise HTTPException(status_code=404, detail='记录不存在')
     cur.execute(_sql("UPDATE study_log SET date = ?,topic = ?, minutes = ?, done = ? WHERE id = ?"),
                 (record.date, record.topic, record.minutes, record.done, record_id))
     conn.commit()
-    conn.close()
     return {'status': 'ok', 'id': record_id}
 
 
 @app.get('/edit/{record_id}')
-def edit_page(record_id: int):
-    conn = get_conn()
+def edit_page(
+    record_id: int, 
+    conn = Depends(get_conn)
+    ):
     cur = conn.cursor()
     cur.execute(_sql("SELECT * FROM study_log WHERE id = ?"), (record_id,))
     old = cur.fetchone()
     if old is None:
-        conn.close()
         raise HTTPException(status_code=404, detail='记录不存在')
     return HTMLResponse(f"""
     <!DOCTYPE html>
@@ -181,28 +190,31 @@ def edit_page(record_id: int):
 
 
 @app.post('/records/{record_id}/update')
-def update_record_form(record_id: int, date: str = Form(...), topic: str = Form(...), minutes: int = Form(...)):
-    conn = get_conn()
+def update_record_form(
+    record_id: int, 
+    date: str = Form(...), 
+    topic: str = Form(...), 
+    minutes: int = Form(...),
+    conn = Depends(get_conn)
+    ):
     cur = conn.cursor()
     cur.execute(_sql("SELECT * FROM study_log WHERE id = ?"), (record_id,))
     old = cur.fetchone()
     if old is None:
-        conn.close()
         raise HTTPException(status_code=404, detail='记录不存在')
     cur.execute(_sql("UPDATE study_log SET date = ?,topic = ?, minutes = ? WHERE id = ?"),
                 (date, topic, minutes, record_id))
     conn.commit()
-    conn.close()
     return HTMLResponse("修改成功! <a href='/list'>返回列表</a>")
 
 
 @app.get('/list')
-def list_page():
-    conn = get_conn()
+def list_page(
+    conn = Depends(get_conn)
+):
     cur = conn.cursor()
     cur.execute(_sql("SELECT * FROM study_log ORDER BY id"))
     rows = cur.fetchall()
-    conn.close()
     record_lines = []
     for row in rows:
         line = (
@@ -243,15 +255,15 @@ def list_page():
 
 
 @app.delete('/records/{record_id}')
-def delete_records(record_id: int):
-    conn = get_conn()
+def delete_records(
+    record_id: int, 
+    conn = Depends(get_conn)
+    ):
     cur = conn.cursor()
     cur.execute(_sql("SELECT * FROM study_log WHERE id = ?"), (record_id,))
     old = cur.fetchone()
     if old is None:
-        conn.close()
         raise HTTPException(status_code=404, detail='记录不存在')
     cur.execute(_sql("DELETE FROM study_log WHERE id = ?"), (record_id,))
     conn.commit()
-    conn.close()
     return {'status': 'ok', 'id': record_id}
