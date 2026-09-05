@@ -41,11 +41,12 @@ jobs:
           # with = 给这个动作传参数；这里指定版本 3.13
 
       - name: 安装测试依赖
-        run: pip install pytest fastapi python-multipart
+        run: pip install pytest fastapi python-multipart httpx
         # run = 直接执行命令（就像你在终端敲）
         # 之前只装了 pytest，但 web/main.py 用了 fastapi 和 Form 表单，
-        # Form 表单必须依赖 python-multipart，缺了它 import main 就会崩，
-        # 测试根本跑不起来，CI 标红。所以三个都装。
+        # Form 表单必须依赖 python-multipart，缺了它 import main 就会崩。
+        # fastapi.testclient 的 TestClient 还需要 httpx，缺了它测试文件收集阶段就崩。
+        # 所以四个都装。
 
       - name: 跑全部测试
         run: pytest -v
