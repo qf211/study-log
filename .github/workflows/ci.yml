@@ -40,13 +40,13 @@ jobs:
           python-version: '3.13'
           # with = 给这个动作传参数；这里指定版本 3.13
 
-      - name: 安装测试依赖
-        run: pip install pytest fastapi python-multipart httpx
+      - name: 安装依赖
+        run: pip install -r requirements.txt
         # run = 直接执行命令（就像你在终端敲）
-        # 之前只装了 pytest，但 web/main.py 用了 fastapi 和 Form 表单，
-        # Form 表单必须依赖 python-multipart，缺了它 import main 就会崩。
-        # fastapi.testclient 的 TestClient 还需要 httpx，缺了它测试文件收集阶段就崩。
-        # 所以四个都装。
+        # 依赖统一读 requirements.txt（单一事实来源）。
+        # 之前这里是手敲 4 个包名，隐患是：本地装了新库（比如 pytest-cov）而这里忘了加，
+        # CI 就会红——而且报错信息是 "unrecognized arguments"，很难联想到是依赖问题。
+        # 现在本地和 CI 读同一份清单，不会再出现"两处清单不同步"。
 
       - name: 跑全部测试
         run: pytest -v

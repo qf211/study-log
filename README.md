@@ -15,17 +15,18 @@
 - 按日期查询学习时长、按主题统计学习时长
 - 主题字典管理（自动去重补录）
 - 导出为 CSV（utf-8-sig 编码，Excel 打开中文不乱码）
-- ✅ **pytest 自动化测试 48 个用例**，全部通过
+- ✅ **pytest 自动化测试 86 个用例**，全部通过（CLI 层 49 + 接口层 37）
+- ✅ **测试覆盖率**：`web/main.py` **95%**（pytest-cov 实测；未覆盖部分是 MySQL 环境分支与防御性代码）
 - ✅ **GitHub Actions CI**：代码推送到 GitHub 自动跑全部测试，全绿才放行
 
 ## 🧪 自动化测试（亮点）
 
 ```bash
-pip install pytest
-pytest test_study_log.py -v
+pip install -r requirements.txt
+pytest -v
 ```
 
-48 passed in 0.06s，测试设计要点：
+**86 passed**，测试设计要点：
 
 - **可测试性重构**：业务逻辑（12 个纯函数）与用户交互（菜单）分离，入口用 `if __name__ == '__main__'` 守卫，使模块可被安全 import
 - **测试隔离**：使用 SQLite `:memory:` 内存数据库 + `@pytest.fixture` 管理每个用例的准备/清理，不触碰真实数据
@@ -39,8 +40,8 @@ pytest test_study_log.py -v
 每次 `git push` 到 main 分支，GitHub Actions 自动执行：
 
 1. 在干净的 Ubuntu 虚拟机拉取代码
-2. 安装 Python 3.13 + pytest
-3. 跑全部 48 个用例
+2. 安装 Python 3.13 + 依赖（读 `requirements.txt`，与本地共用同一份清单）
+3. 跑全部 86 个用例（CLI 层 + 接口层）
 
 全绿 ✅ 才代表这次提交合格；有红 ❌ 说明代码有问题，要回去改。配置在 `.github/workflows/ci.yml`。
 
@@ -49,23 +50,25 @@ pytest test_study_log.py -v
 - Python 3
 - SQLite / MySQL 8.0
 - pymysql
-- pytest
+- **FastAPI**（Web 接口层，12 个路由）+ **pydantic**（入参校验）
+- pytest + **pytest-cov**（覆盖率）
 - Git / GitHub（含 **GitHub Actions CI**）
 - Linux（阿里云 ECS 部署运行）
 
 ## 🚀 使用方法
 
 ```bash
+# 先装依赖（本地与 CI 共用一份清单）
+pip install -r requirements.txt
+
 # SQLite 版（零配置，直接跑）
 python 记录学习日志脚本.py
 
 # MySQL 版（需先在本机建 config.py 配置密码）
-pip install pymysql
 python db_mysql.py
 
-# 运行测试
-pip install pytest
-pytest test_study_log.py -v
+# 运行全部测试
+pytest -v
 ```
 
 > 提示：MySQL 版从 `config.py` 读取数据库密码

@@ -1,0 +1,12 @@
+# 依赖清单（本地与 CI 共用同一份 —— 单一事实来源）
+# 用法：pip install -r requirements.txt
+
+# ---- 运行依赖 ----
+fastapi
+python-multipart
+pymysql
+
+# ---- 测试依赖 ----
+pytest
+pytest-cov
+httpx

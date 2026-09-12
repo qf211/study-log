@@ -324,3 +324,128 @@ def test_done_field_is_bool(client):
     actual = resp.json()[0]['done']
     assert actual is True, f"done 应为布尔 True，实际是 {actual!r}（类型 {type(actual).__name__}）"
 
+
+# ===================== D 组：HTML 页面 / 表单流（补覆盖率缺口）=====================
+# 背景：覆盖率报告显示 web/main.py 里这些路由一行都没被跑到
+# （:49 GET /、:74-79 表单新增成功路径、:188-193 编辑页、:218-226 表单更新、:233-261 列表页）
+# 页面类用例的断言方式：状态码 + 页面里应出现的关键字（不需要比对整页 HTML）
+
+def _create_one(client, topic='页面用例'):
+    """内部小工具：通过 JSON 接口建一条记录，返回 id（页面用例都要先有数据）"""
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': topic,
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 200
+    return resp.json()['id']
+
+
+def test_index_page(client):
+    """GET / 首页表单页 → 200，且含标题关键内容"""
+    resp = client.get('/')
+    assert resp.status_code == 200
+    assert '学习日志管理器' in resp.text
+
+
+def test_form_create_success(client):
+    """表单新增的**成功路径**（之前只测了缺字段 422，没测正常提交）"""
+    resp = client.post('/records-form', data={
+        'date': '2026-09-12',
+        'topic': '表单提交',
+        'minutes': 45
+    })
+    assert resp.status_code == 200
+    assert '添加成功' in resp.text
+
+    # 验证真的入库了（页面返回成功 ≠ 数据进了库，要交叉验证）
+    resp = client.get('/records')
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    assert resp.json()[0]['topic'] == '表单提交'
+
+
+def test_edit_page_ok(client):
+    """GET /edit/{id} 编辑页（有数据）→ 200，且带出原值"""
+    new_id = _create_one(client, topic='待编辑')
+    resp = client.get(f'/edit/{new_id}')
+    assert resp.status_code == 200
+    assert '编辑' in resp.text
+    assert '待编辑' in resp.text, '编辑页应带出原有内容'
+
+
+def test_edit_page_404(client):
+    """GET /edit/999 编辑页（记录不存在）→ 404"""
+    resp = client.get('/edit/999')
+    assert resp.status_code == 404
+
+
+def test_update_form_ok(client):
+    """POST /records/{id}/update 表单更新成功 → 200，且库里真的改了"""
+    new_id = _create_one(client, topic='更新前')
+    resp = client.post(f'/records/{new_id}/update', data={
+        'date': '2026-09-12',
+        'topic': '更新后',
+        'minutes': 60
+    })
+    assert resp.status_code == 200
+    assert '修改成功' in resp.text
+
+    resp = client.get('/records')
+    assert resp.json()[0]['topic'] == '更新后'
+    assert resp.json()[0]['minutes'] == 60
+
+
+def test_update_form_404(client):
+    """POST /records/999/update 更新不存在的记录 → 404"""
+    resp = client.post('/records/999/update', data={
+        'date': '2026-09-12',
+        'topic': '不存在',
+        'minutes': 30
+    })
+    assert resp.status_code == 404
+
+
+def test_list_page(client):
+    """GET /list 列表页 → 200，且渲染出记录与删除按钮"""
+    _create_one(client, topic='列表用例')
+    resp = client.get('/list')
+    assert resp.status_code == 200
+    assert '列表用例' in resp.text
+    assert '删除' in resp.text, '列表页应带删除按钮（调 DELETE 接口的 JS）'
+
+
+def test_put_not_found(client):
+    """PUT /records/999 记录不存在 → 404（探测时验过，但一直没写成用例）"""
+    resp = client.put('/records/999', json={
+        'date': '2026-09-12',
+        'topic': '不存在',
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 404
+
+
+def test_put_bad_date(client):
+    """PUT 传非法日期 → 422（覆盖 UpdateRecord 的 date 校验分支）"""
+    resp = client.put('/records/1', json={
+        'date': '2026/09/12',
+        'topic': '日期格式错',
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_get_record_by_id_ok(client):
+    """GET /records/{id} 单条查询的**成功路径**（覆盖率报告揪出来的缺口：
+    我们测了 404，却没测"查到一条存在的记录"）"""
+    new_id = _create_one(client, topic='单条查询')
+    resp = client.get(f'/records/{new_id}')
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['id'] == new_id
+    assert data['topic'] == '单条查询'
+    assert data['done'] is False, 'done 也该是布尔值（同一套 _row_to_dict 处理）'
+
