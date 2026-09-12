@@ -1,6 +1,7 @@
 import csv
 import sqlite3
 from datetime import datetime
+from validators import is_valid_minutes, parse_date
 
 # ========== 数据库连接 (启动时执行一次) ==========
 conn = sqlite3.connect('data/study.db')
@@ -10,13 +11,6 @@ cur.execute("CREATE TABLE IF NOT EXISTS study_log (id INTEGER PRIMARY KEY, date 
 cur.execute("CREATE TABLE IF NOT EXISTS shell_topic (topic TEXT PRIMARY KEY)")
 conn.commit()
 
-
-def parse_date(text):
-    try:
-        datetime.strptime(text, '%Y-%m-%d')
-        return text
-    except(ValueError, TypeError):
-        return None
 
 def add_record(conn, cur, date, topic, minutes, done):
     """添加一条学习记录, 同时把主题登记进字典表"""
@@ -85,9 +79,6 @@ def export_csv(cur):
         writer = csv.writer(file)
         writer.writerow(['id', 'date', 'topic', 'minutes', 'done'])
         writer.writerows(cur.fetchall())
-
-def is_valid_minutes(m):
-    return 1 <= m <= 600
 
 def parse_minutes(text):
     try:

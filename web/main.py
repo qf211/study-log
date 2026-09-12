@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException, Depends
 import config
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+import validators
 
 # 数据库类型判断：本地 sqlite，服务器 mysql
 if config.DATABASE_TYPE == 'mysql':
@@ -20,6 +21,11 @@ def _sql(s):
         return s.replace('?', '%s')
     return s
 
+def _row_to_dict(row):
+    d = dict(row)
+    raw = d.get('done')
+    d['done'] = str(raw).strip().lower() in ('1', 'yes', 'true')
+    return d
 
 def get_conn():
     if config.DATABASE_TYPE == 'mysql':
@@ -80,7 +86,7 @@ def get_records(
     cur = conn.cursor()
     cur.execute(_sql("SELECT id, date, topic, minutes, done FROM study_log"))
     rows = cur.fetchall()
-    return [dict(row) for row in rows]
+    return [_row_to_dict(row) for row in rows]
 
 
 @app.get('/records/by_date')
@@ -91,7 +97,7 @@ def get_records_by_date(
     cur = conn.cursor()
     cur.execute(_sql("SELECT * FROM study_log WHERE date = ?"), (date,))
     rows = cur.fetchall()
-    return [dict(row) for row in rows]
+    return [_row_to_dict(row) for row in rows]
 
 
 @app.get('/records/{records_id}')
@@ -105,7 +111,7 @@ def get_record(
     row = cur.fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail='没有这条记录')
-    return dict(row)
+    return _row_to_dict(row)
 
 
 @app.get('/stats')
@@ -119,18 +125,30 @@ def get_stats(
 
 
 class NewRecord(BaseModel):
-    date: str
-    topic: str
-    minutes: int
+    date: str = ...
+    topic: str = Field(..., min_length=1, max_length=200)
+    minutes: int = Field(..., ge=1, le=600)
     done: bool = False
 
+    @field_validator('date')
+    @classmethod
+    def check_date(cls, v):
+        if validators.parse_date(v) is None:
+            raise ValueError('日期格式必须是 YYYY-MM-DD')
+        return v
 
 class UpdateRecord(BaseModel):
-    date: str
-    topic: str
-    minutes: int
+    date: str = ...
+    topic: str = Field(..., min_length=1, max_length=200)
+    minutes: int = Field(..., ge=1, le=600)
     done: bool = False
 
+    @field_validator('date')
+    @classmethod
+    def check_date(cls, v):
+        if validators.parse_date(v) is None:
+            raise ValueError('日期格式必须是 YYYY-MM-DD')
+        return v
 
 @app.post('/records')
 def add_record(
