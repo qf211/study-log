@@ -1,30 +1,12 @@
 import pytest
-import sqlite3
-import main 
-from fastapi.testclient import TestClient
 
-TEST_CONN = sqlite3.connect(':memory:', check_same_thread=False)
-TEST_CONN.row_factory = sqlite3.Row
-
-def override_get_conn():
-    return TEST_CONN
-
-main.app.dependency_overrides[main.get_conn] = override_get_conn
-
-@pytest.fixture()
-
-def client():
-    cur = TEST_CONN.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS study_log (id INTEGER PRIMARY KEY, date TEXT, topic TEXT, minutes INTEGER, done TEXT)")
-    cur.execute("DELETE FROM study_log")
-    TEST_CONN.commit()
-    return TestClient(main.app)
-
+@pytest.mark.smoke
 def test_records_empty(client):
     resp = client.get('/records')
     assert resp.status_code == 200
     assert resp.json() == []
 
+@pytest.mark.smoke
 def test_records(client):
     resp = client.post('/records', json={
         'date': '2026-09-03',
@@ -206,6 +188,7 @@ def test_records_topic_too_long(client):
     assert resp.status_code == 422
 
 
+@pytest.mark.smoke
 def test_update(client):
     resp = client.post('/records', json={
         'date': '2026-09-03',
@@ -228,6 +211,7 @@ def test_update(client):
     data = resp.json()
     assert data[0]['topic'] == 'fastAPI'
 
+@pytest.mark.smoke
 def test_delete(client):
     resp = client.post('/records', json={
         'date': '2026-09-03',
@@ -250,6 +234,7 @@ def test_404(client):
 
 # ===================== C 组：边界 / 安全 / 类型一致性 =====================
 
+@pytest.mark.smoke
 def test_stats_empty_db(client):
     """空库统计：COUNT/SUM 在空表上的行为（COALESCE 兜底成 0，不是 None）"""
     resp = client.get('/stats')
@@ -342,6 +327,7 @@ def _create_one(client, topic='页面用例'):
     return resp.json()['id']
 
 
+@pytest.mark.smoke
 def test_index_page(client):
     """GET / 首页表单页 → 200，且含标题关键内容"""
     resp = client.get('/')
@@ -349,6 +335,7 @@ def test_index_page(client):
     assert '学习日志管理器' in resp.text
 
 
+@pytest.mark.smoke
 def test_form_create_success(client):
     """表单新增的**成功路径**（之前只测了缺字段 422，没测正常提交）"""
     resp = client.post('/records-form', data={
@@ -407,6 +394,7 @@ def test_update_form_404(client):
     assert resp.status_code == 404
 
 
+@pytest.mark.smoke
 def test_list_page(client):
     """GET /list 列表页 → 200，且渲染出记录与删除按钮"""
     _create_one(client, topic='列表用例')
@@ -438,6 +426,7 @@ def test_put_bad_date(client):
     assert resp.status_code == 422
 
 
+@pytest.mark.smoke
 def test_get_record_by_id_ok(client):
     """GET /records/{id} 单条查询的**成功路径**（覆盖率报告揪出来的缺口：
     我们测了 404，却没测"查到一条存在的记录"）"""
@@ -517,6 +506,7 @@ def test_minutes_none_rejected(client):
     assert resp.status_code == 422
 
 
+@pytest.mark.contract
 def test_minutes_numeric_string_is_accepted(client):
     """时长传字符串 '30' → **当前会被接受**（pydantic 宽松模式自动转成 30）
 
@@ -603,6 +593,7 @@ def test_extra_field_ignored(client):
 
 # ---- 重复提交（幂等性）----
 
+@pytest.mark.contract
 def test_duplicate_submit_creates_two_records(client):
     """重复提交同一条数据 → **当前会存两条**（无幂等）
 
