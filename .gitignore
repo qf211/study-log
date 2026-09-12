@@ -2,6 +2,7 @@ __pycache__/
 .pytest_cache/
 data/
 .coverage
+reports/
 
 # 部署包与本地参考（不提交）
 study-log-deploy.tar.gz

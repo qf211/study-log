@@ -9,4 +9,5 @@ pymysql
 # ---- 测试依赖 ----
 pytest
 pytest-cov
+pytest-html
 httpx

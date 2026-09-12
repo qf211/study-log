@@ -48,7 +48,19 @@ jobs:
         # CI 就会红——而且报错信息是 "unrecognized arguments"，很难联想到是依赖问题。
         # 现在本地和 CI 读同一份清单，不会再出现"两处清单不同步"。
 
-      - name: 跑全部测试
-        run: pytest -v
-        # 执行全部测试；-v 详细输出每个用例名
-        # 只要有 1 个失败，这一步非零退出码，整个工作流标红
+      - name: 跑全部测试（覆盖率门禁）
+        run: pytest --cov-fail-under=70
+        # 通用参数写在 pytest.ini 里（本地与 CI 共用）：-v、覆盖率输出、HTML 报告
+        # 这里额外加 --cov-fail-under=70 = 质量门禁：
+        #   覆盖率低于 70% 时这一步返回非零退出码 → 整个工作流标红
+        # 目的不是"卡数字"，而是防止覆盖率在后续开发里悄悄往下掉
+        # （有人在这次改动里把覆盖率从 95% 干到 60%，CI 会当场拦住）
+
+      - name: 上传测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        # if: always() = 不管前面成功还是失败都执行这一步
+        # 因为**测试失败的时候，才最需要报告**——默认行为是前面失败就跳过后续步骤
+        with:
+          name: test-report
+          path: reports/report.html
