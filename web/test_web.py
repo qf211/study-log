@@ -449,3 +449,232 @@ def test_get_record_by_id_ok(client):
     assert data['topic'] == '单条查询'
     assert data['done'] is False, 'done 也该是布尔值（同一套 _row_to_dict 处理）'
 
+
+# ===================== E 组：异常专项（T5）=====================
+# 期望值一律按"需求"写；会红的用例不是写错了，而是发现了 bug
+# 需求口径（本次定）：校验失败统一返回 422（JSON 接口与表单接口一致）
+
+# ---- 内容（topic）----
+
+def test_topic_only_spaces_rejected(client):
+    """内容全是空格 '   ' → 该被拒（422）
+
+    需求是"内容不能为空"，而纯空格在业务上就是空。
+    注意：min_length=1 只管字符个数，'   ' 长度是 3，所以它能混过去 ❗
+    """
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': '   ',
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_topic_boundary_200_ok(client):
+    """内容正好 200 字（合法边界）→ 应通过"""
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': '测' * 200,
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 200
+
+
+def test_topic_boundary_201_rejected(client):
+    """内容 201 字（越界）→ 应被拒（422）"""
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': '测' * 201,
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+# ---- 时长（minutes）----
+
+def test_minutes_float_rejected(client):
+    """时长传浮点数 1.5 → 应被拒（分钟是整数）"""
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': '浮点时长',
+        'minutes': 1.5,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_minutes_none_rejected(client):
+    """时长传 null → 应被拒（必填字段）"""
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': '空时长',
+        'minutes': None,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_minutes_numeric_string_is_accepted(client):
+    """时长传字符串 '30' → **当前会被接受**（pydantic 宽松模式自动转成 30）
+
+    这不是 bug 也不是正确行为，而是"需求没定义"的地方。
+    本用例的作用是**把当前行为钉住**：将来若改成严格模式（拒绝数字字符串），
+    这条会红，提醒你"这里的行为变了，是有意的吗？"
+    """
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': '数字字符串时长',
+        'minutes': '30',
+        'done': False
+    })
+    assert resp.status_code == 200, '当前行为：宽松模式接受数字字符串（需求未定义）'
+
+
+# ---- 日期（date）----
+
+def test_date_empty_rejected(client):
+    """日期传空串 '' → 应被拒（422）"""
+    resp = client.post('/records', json={
+        'date': '',
+        'topic': '空日期',
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_date_impossible_value_rejected(client):
+    """日期 '2026-13-45'（格式对但值不存在）→ 应被拒（422）"""
+    resp = client.post('/records', json={
+        'date': '2026-13-45',
+        'topic': '不存在的日期',
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_date_too_long_rejected(client):
+    """日期传 300 字超长 → 应被拒（422）"""
+    resp = client.post('/records', json={
+        'date': '2' * 300,
+        'topic': '超长日期',
+        'minutes': 30,
+        'done': False
+    })
+    assert resp.status_code == 422
+
+
+# ---- 请求体本身 ----
+
+def test_body_empty_object_rejected(client):
+    """请求体是空对象 {} → 应被拒（422，缺必填字段）"""
+    resp = client.post('/records', json={})
+    assert resp.status_code == 422
+
+
+def test_body_not_json_rejected(client):
+    """请求体不是 JSON（纯文本）→ 应被拒（422）
+    注意：传原始 body 用 content=，不是 data=（data= 是给表单用的）"""
+    resp = client.post('/records', content='not-json',
+                       headers={'Content-Type': 'text/plain'})
+    assert resp.status_code == 422
+
+
+def test_extra_field_ignored(client):
+    """多传未知字段 → 忽略它，但**不能把它写进库里**（防脏数据/注入面扩大）"""
+    resp = client.post('/records', json={
+        'date': '2026-09-12',
+        'topic': '多余字段',
+        'minutes': 30,
+        'done': False,
+        'hacker': 'drop table'
+    })
+    assert resp.status_code == 200
+
+    resp = client.get('/records')
+    row = resp.json()[0]
+    assert 'hacker' not in row, '未知字段不该进库'
+    assert set(row.keys()) == {'id', 'date', 'topic', 'minutes', 'done'}
+
+
+# ---- 重复提交（幂等性）----
+
+def test_duplicate_submit_creates_two_records(client):
+    """重复提交同一条数据 → **当前会存两条**（无幂等）
+
+    需求未定义"是否该去重"，所以本用例只钉住现状：
+    若以后加了幂等/唯一约束，这条会红，提醒你契约变了。
+    """
+    payload = {'date': '2026-09-12', 'topic': '重复提交', 'minutes': 30, 'done': False}
+    assert client.post('/records', json=payload).status_code == 200
+    assert client.post('/records', json=payload).status_code == 200
+    assert len(client.get('/records').json()) == 2, '当前行为：不去重'
+
+
+# ---- PUT（更新）的负向 ----
+
+def test_put_minutes_negative(client):
+    """PUT 时长负数 → 应被拒（422）"""
+    new_id = _create_one(client)
+    resp = client.put(f'/records/{new_id}', json={
+        'date': '2026-09-12', 'topic': '改', 'minutes': -1, 'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_put_topic_empty(client):
+    """PUT 内容空串 → 应被拒（422）"""
+    new_id = _create_one(client)
+    resp = client.put(f'/records/{new_id}', json={
+        'date': '2026-09-12', 'topic': '', 'minutes': 30, 'done': False
+    })
+    assert resp.status_code == 422
+
+
+def test_put_minutes_over_limit(client):
+    """PUT 时长 601（越界）→ 应被拒（422）"""
+    new_id = _create_one(client)
+    resp = client.put(f'/records/{new_id}', json={
+        'date': '2026-09-12', 'topic': '改', 'minutes': 601, 'done': False
+    })
+    assert resp.status_code == 422
+
+
+# ---- 表单接口的负向（表单参数不走 pydantic 模型 → 目前完全没有校验）----
+
+def test_form_minutes_zero_rejected(client):
+    """表单新增：时长为 0 → 应被拒（422，与 JSON 接口同一口径）"""
+    resp = client.post('/records-form', data={
+        'date': '2026-09-12', 'topic': '表单零时长', 'minutes': '0'
+    })
+    assert resp.status_code == 422
+
+
+def test_form_bad_date_rejected(client):
+    """表单新增：日期格式非法 → 应被拒（422）"""
+    resp = client.post('/records-form', data={
+        'date': '2026/09/12', 'topic': '表单坏日期', 'minutes': '30'
+    })
+    assert resp.status_code == 422
+
+
+def test_form_topic_only_spaces_rejected(client):
+    """表单新增：内容纯空格 → 应被拒（422）"""
+    resp = client.post('/records-form', data={
+        'date': '2026-09-12', 'topic': '   ', 'minutes': '30'
+    })
+    assert resp.status_code == 422
+
+
+def test_update_form_minutes_zero_rejected(client):
+    """表单更新：时长为 0 → 应被拒（422）"""
+    new_id = _create_one(client)
+    resp = client.post(f'/records/{new_id}/update', data={
+        'date': '2026-09-12', 'topic': '表单更新', 'minutes': '0'
+    })
+    assert resp.status_code == 422
+

@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 import config
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator
+from typing import Annotated
 import validators
 
 # 数据库类型判断：本地 sqlite，服务器 mysql
@@ -41,6 +42,34 @@ def get_conn():
         conn.row_factory = sqlite3.Row
     return conn
 
+class RecordBase(BaseModel):         
+    date: str
+    topic: str
+    minutes: int = Field(ge=1, le=600)
+
+    @field_validator("date")
+    @classmethod
+    def check_date(cls, v):
+        if validators.parse_date(v) is None:
+            raise ValueError('日期格式必须是 YYYY-MM-DD')
+        return v     
+
+    @field_validator("topic")
+    @classmethod
+    def check_topic(cls, v):
+        if not validators.is_valid_topic(v):
+            raise ValueError('内容不能为空或全是空格，长度 1~200')
+        return v 
+
+class NewRecord(RecordBase):
+    done: bool = False
+
+class UpdateRecord(RecordBase):
+    done: bool = False
+
+class RecordForm(RecordBase):
+    pass                            
+  
 
 app = FastAPI()
 
@@ -65,15 +94,13 @@ def index():
 
 @app.post("/records-form")
 def add_record_form(
-    date: str = Form(...), 
-    topic: str = Form(...), 
-    minutes: int = Form(...), 
+    form: Annotated[RecordForm, Form()],
     conn = Depends(get_conn)
     ):
     
     cur = conn.cursor()
     cur.execute(_sql("INSERT INTO study_log (date, topic, minutes, done) VALUES (?, ?, ?, ?)"),
-                (date, topic, minutes, False))
+                (form.date, form.topic, form.minutes, False))
     conn.commit()
     new_id = cur.lastrowid
     return HTMLResponse(f"添加成功! 新纪录 id={new_id}, <a href='/'>返回表单</a>")
@@ -124,31 +151,6 @@ def get_stats(
     return dict(row)
 
 
-class NewRecord(BaseModel):
-    date: str = ...
-    topic: str = Field(..., min_length=1, max_length=200)
-    minutes: int = Field(..., ge=1, le=600)
-    done: bool = False
-
-    @field_validator('date')
-    @classmethod
-    def check_date(cls, v):
-        if validators.parse_date(v) is None:
-            raise ValueError('日期格式必须是 YYYY-MM-DD')
-        return v
-
-class UpdateRecord(BaseModel):
-    date: str = ...
-    topic: str = Field(..., min_length=1, max_length=200)
-    minutes: int = Field(..., ge=1, le=600)
-    done: bool = False
-
-    @field_validator('date')
-    @classmethod
-    def check_date(cls, v):
-        if validators.parse_date(v) is None:
-            raise ValueError('日期格式必须是 YYYY-MM-DD')
-        return v
 
 @app.post('/records')
 def add_record(
@@ -210,9 +212,7 @@ def edit_page(
 @app.post('/records/{record_id}/update')
 def update_record_form(
     record_id: int, 
-    date: str = Form(...), 
-    topic: str = Form(...), 
-    minutes: int = Form(...),
+    form: Annotated[RecordForm, Form()],
     conn = Depends(get_conn)
     ):
     cur = conn.cursor()
@@ -221,7 +221,7 @@ def update_record_form(
     if old is None:
         raise HTTPException(status_code=404, detail='记录不存在')
     cur.execute(_sql("UPDATE study_log SET date = ?,topic = ?, minutes = ? WHERE id = ?"),
-                (date, topic, minutes, record_id))
+                (form.date, form.topic, form.minutes, record_id))
     conn.commit()
     return HTMLResponse("修改成功! <a href='/list'>返回列表</a>")
 

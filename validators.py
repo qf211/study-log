@@ -10,3 +10,5 @@ def parse_date(s):
     except(ValueError, TypeError):
         return None
 
+def is_valid_topic(t):
+    return isinstance(t, str) and 1 <= len(t.strip()) <= 200
